@@ -1,0 +1,170 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+from datetime import datetime
+import json
+import os
+
+class TrainingPlanner:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Training Planner")
+        self.root.geometry("800x600")
+
+        # Список тренировок
+        self.trainings = []
+
+        # Создаем элементы интерфейса
+        self.create_widgets()
+
+        # Загружаем данные из JSON
+        self.load_data()
+
+    def create_widgets(self):
+        # Панель добавления тренировки
+        input_frame = tk.Frame(self.root, padx=10, pady=10)
+        input_frame.pack(fill=tk.X)
+
+        # Дата
+        tk.Label(input_frame, text="Дата:").grid(row=0, column=0, sticky=tk.W)
+        self.date_entry = tk.Entry(input_frame, width=20)
+        self.date_entry.grid(row=0, column=1, padx=5)
+        tk.Label(input_frame, text="(формат: DD.MM.YYYY)").grid(row=0, column=2)
+
+        # Тип тренировки
+        tk.Label(input_frame, text="Тип тренировки:").grid(row=1, column=0, sticky=tk.W)
+        self.type_entry = tk.Entry(input_frame, width=20)
+        self.type_entry.grid(row=1, column=1, padx=5)
+
+        # Длительность
+        tk.Label(input_frame, text="Длительность (мин):").grid(row=2, column=0, sticky=tk.W)
+        self.duration_entry = tk.Entry(input_frame, width=20)
+        self.duration_entry.grid(row=2, column=1, padx=5)
+
+        # Кнопка добавления
+        add_button = tk.Button(input_frame, text="Добавить тренировку",
+                               command=self.add_training, bg="lightblue")
+        add_button.grid(row=3, column=1, pady=10)
+
+        # Панель фильтрации
+        filter_frame = tk.Frame(self.root, padx=10, pady=5)
+        filter_frame.pack(fill=tk.X)
+
+        tk.Label(filter_frame, text="Фильтр по типу:").grid(row=0, column=0, sticky=tk.W)
+        self.type_filter_entry = tk.Entry(filter_frame, width=20)
+        self.type_filter_entry.grid(row=0, column=1, padx=5)
+
+        tk.Label(filter_frame, text="Фильтр по дате:").grid(row=1, column=0, sticky=tk.W)
+        self.date_filter_entry = tk.Entry(filter_frame, width=20)
+        self.date_filter_entry.grid(row=1, column=1, padx=5)
+        tk.Label(filter_frame, text="(формат: DD.MM.YYYY)").grid(row=1, column=2)
+
+        # Кнопки фильтрации
+        filter_button = tk.Button(filter_frame, text="Применить фильтр",
+                                  command=self.apply_filter, bg="lightgreen")
+        filter_button.grid(row=2, column=1, pady=5)
+
+        clear_filter_button = tk.Button(filter_frame, text="Очистить фильтр",
+                                      command=self.clear_filter, bg="lightgray")
+        clear_filter_button.grid(row=2, column=2, padx=5)
+
+        # Таблица тренировок
+        table_frame = tk.Frame(self.root, padx=10, pady=10)
+        table_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Создаем таблицу с колонками
+        columns = ("Дата", "Тип тренировки", "Длительность")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+
+        # Настраиваем колонки
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=200)
+
+        # Добавляем scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Кнопки управления
+        button_frame = tk.Frame(self.root, padx=10, pady=5)
+        button_frame.pack(fill=tk.X)
+
+        delete_button = tk.Button(button_frame, text="Удалить выбранную",
+                              command=self.delete_training, bg="lightcoral")
+        delete_button.pack(side=tk.LEFT, padx=5)
+
+        save_button = tk.Button(button_frame, text="Сохранить данные",
+                             command=self.save_data, bg="lightyellow")
+        save_button.pack(side=tk.LEFT, padx=5)
+
+    def add_training(self):
+        try:
+            date_str = self.date_entry.get()
+            training_type = self.type_entry.get()
+            duration_str = self.duration_entry.get()
+
+            if not all([date_str, training_type, duration_str]):
+                messagebox.showerror("Ошибка", "Заполните все поля!")
+                return
+
+            # Проверяем формат даты
+            date_obj = datetime.strptime(date_str, "%d.%m.%Y")
+            duration = int(duration_str)
+
+            training = {
+                "date": date_str,
+                "type": training_type,
+                "duration": duration
+            }
+
+            self.trainings.append(training)
+            self.update_table()
+
+            # Очищаем поля ввода
+            self.date_entry.delete(0, tk.END)
+            self.type_entry.delete(0, tk.END)
+            self.duration_entry.delete(0, tk.END)
+
+        except ValueError:
+            messagebox.showerror("Ошибка", "Неверный формат даты или длительности!")
+
+    def update_table(self):
+        # Очищаем таблицу
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        # Заполняем данными
+        for training in self.trainings:
+            self.tree.insert("", tk.END, values=(
+                training["date"],
+                training["type"],
+                f"{training['duration']} мин"
+            ))
+
+    def apply_filter(self):
+        filtered_trainings = self.trainings
+
+        type_filter = self.type_filter_entry.get().lower()
+        date_filter = self.date_filter_entry.get()
+
+        if type_filter:
+            filtered_trainings = [t for t in filtered_trainings if type_filter in t["type"].lower()]
+
+        if date_filter:
+            filtered_trainings = [t for t in filtered_trainings if date_filter == t["date"]]
+
+        # Обновляем таблицу с фильтрами
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for training in filtered_trainings:
+            self.tree.insert("", tk.END, values=(
+                training["date"],
+                training["type"],
+                f"{training['duration']} мин"
+            ))
+
+    def clear_filter(self):
+        self.type_filter_entry.
